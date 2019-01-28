@@ -1,0 +1,17 @@
+{
+  "name": "doctolib",
+  "version": "1.0.0",
+  "description": "creation d'un serveur possédant les méthodes GET et POST pour afficher et réserver des créneaux de consultation médicale.",
+  "main": "index.js",
+  "dependencies": {
+    "body-parser": "^1.18.3",
+    "express": "^4.16.4"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
