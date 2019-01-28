@@ -1,5 +1,6 @@
 const express = require("express");
 const bodyParser = require("body-parser");
+const dateFns = require("date-fns");
 
 const appServer = express();
 appServer.use(bodyParser.json());
@@ -11,6 +12,13 @@ appServer.use(bodyParser.json());
 // Tableau de gestions des données de consultation
 // Contient les différents slots de réservation par journée
 const consultations = [];
+
+// Objet renvoyé en réponse en cas d'erreur
+const errors = {
+  error: {
+    message: ""
+  }
+};
 
 // --------- //
 // FONCTIONS //
@@ -42,7 +50,7 @@ const newDateConsult = newDate => {
 // Vérifie si la journée de consultation demandée existe déjà dans le tableau
 // Si elle n'existe pas, la nouvelle date est ajoutée et initialisée dans le tableau 'consultations'
 // Retourne la position de la date trouvée dans 'consultations[]' ou le dernier indice du tableau si elle a été ajoutée.
-const idDateConsultation = dateToCheck => {
+const indexDateConsultation = dateToCheck => {
   for (let i = 0; i < consultations.length; i++) {
     if (consultations[i].date === dateToCheck) {
       return i;
@@ -50,32 +58,63 @@ const idDateConsultation = dateToCheck => {
   }
   // Ajout de la nouvelle date si non trouvée
   return newDateConsult(dateToCheck);
-  //   return consultations.length - 1;
 };
 
-const isSlotAvailable = (idDate, slotToCheck) => {
-  return consultations[idDate].slots[slotToCheck].isAvailable;
+const isSlotAvailable = (indexDate, slotToCheck) => {
+  return consultations[indexDate].slots[slotToCheck].isAvailable;
+};
+
+// Génère une clé de réservation
+const idBooking = (bookedDate, patientName) => {
+  return bookedDate.replace(/-/g, "") + patientName[0] + Math.floor(Math.random() * 101);
+};
+
+// Annule une réservation d'après son ID
+const findIdBooking = idToFind => {
+  for (let i = 0; i < consultations.length; i++) {
+    for (const slot in consultations[i].slots) {
+      if (consultations[i].slots[slot].bookingId === idToFind) {
+        consultations[i].slots[slot].name = "";
+        consultations[i].slots[slot].isAvailable = true;
+        consultations[i].slots[slot].bookingId = "";
+        return { message: "Booking cancelled" };
+      }
+    }
+  }
+  errors.error.message = `Booking N°${idToFind} not found !`;
+  return errors;
 };
 
 // Réserve un créneau pour une date et un patient
-// Retourne 'true' si la réservation est OK, 'false' sinon
+// Retourne un objet en fonction du résultat
 const bookConsultation = (bookedDate, bookedSlot, patientName) => {
-  const idDate = idDateConsultation(bookedDate);
-  console.log("Date demandée: " + bookedDate, "Consult: " + consultations[idDate].date);
-  // Si le créneau est dispo pour cette date, on ajoute le nom du patient
-  if (isSlotAvailable(idDate, bookedSlot)) {
-    console.log("Résa pour " + consultations[idDate].date);
-    consultations[idDate].slots[bookedSlot].name = patientName;
-    consultations[idDate].slots[bookedSlot].isAvailable = false;
-    return true;
+  // Vérification d'une date de réservation dans le passé
+  //   console.log(bookedDate, dateFns.isPast(bookedDate));
+  if (dateFns.isPast(bookedDate)) {
+    errors.error.message = `Booking date ${bookedDate} is in the past`;
+    return errors;
   }
-  return false;
+  if (dateFns.getDay(bookedDate) === 0) {
+    errors.error.message = `${bookedDate} the doctor doesn't work on sunday !`;
+    return errors;
+  }
+  const indexDate = indexDateConsultation(bookedDate);
+
+  // Si le créneau est dispo pour cette date, on ajoute le nom du patient
+  if (isSlotAvailable(indexDate, bookedSlot)) {
+    consultations[indexDate].slots[bookedSlot].name = patientName;
+    consultations[indexDate].slots[bookedSlot].bookingId = idBooking(bookedDate, patientName);
+    consultations[indexDate].slots[bookedSlot].isAvailable = false;
+    return { message: "Successfuly booked" };
+  }
+  // Sinon (test homis du fait du return précédent), message d'erreur
+  errors.error.message = "Slot already booked";
+  return errors;
 };
 
 const displayConsultation = dateToDisplay => {
-  const idDate = idDateConsultation(dateToDisplay);
-  //   return consultations[idDate];
-  return consultations;
+  const indexDate = indexDateConsultation(dateToDisplay);
+  return consultations[indexDate];
 };
 
 // ------ //
@@ -89,14 +128,12 @@ appServer.get("/visits", (req, res) => {
 
 // Méthode POST pour réserver un créneau
 appServer.post("/visits", (req, res) => {
-  if (bookConsultation(req.body.date, req.body.slot, req.body.name)) {
-    return res.json({ message: "Successfuly booked" });
-  }
-  res.json({
-    error: {
-      message: "Slot already booked"
-    }
-  });
+  res.json(bookConsultation(req.body.date, req.body.slot, req.body.name));
+});
+
+// Méthode POST pour supprimer une réservation
+appServer.post("/cancelbooking", (req, res) => {
+  res.json(findIdBooking(req.body.bookingId));
 });
 
 appServer.all("*", (req, res) => {
