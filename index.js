@@ -70,7 +70,7 @@ const idBooking = (bookedDate, patientName) => {
 };
 
 // Annule une réservation d'après son ID
-const findIdBooking = idToFind => {
+const cancelBooking = idToFind => {
   for (let i = 0; i < consultations.length; i++) {
     for (const slot in consultations[i].slots) {
       if (consultations[i].slots[slot].bookingId === idToFind) {
@@ -117,6 +117,16 @@ const displayConsultation = dateToDisplay => {
   return consultations[indexDate];
 };
 
+const displayConsultationSansId = dateToDisplay => {
+  const indexDate = indexDateConsultation(dateToDisplay);
+  const slotArray = [];
+  slotArray.push({ date: dateToDisplay });
+  for (const slot in consultations[indexDate].slots) {
+    slotArray.push({ [`${slot}`]: { Available: consultations[indexDate].slots[slot].isAvailable, name: consultations[indexDate].slots[slot].name } });
+  }
+  return slotArray;
+};
+
 // ------ //
 // ROUTES //
 // ------ //
@@ -126,6 +136,10 @@ appServer.get("/visits", (req, res) => {
   res.json(displayConsultation(req.query.date));
 });
 
+appServer.get("/visitssansid", (req, res) => {
+  res.json(displayConsultationSansId(req.query.date));
+});
+
 // Méthode POST pour réserver un créneau
 appServer.post("/visits", (req, res) => {
   res.json(bookConsultation(req.body.date, req.body.slot, req.body.name));
@@ -133,7 +147,7 @@ appServer.post("/visits", (req, res) => {
 
 // Méthode POST pour supprimer une réservation
 appServer.post("/cancelbooking", (req, res) => {
-  res.json(findIdBooking(req.body.bookingId));
+  res.json(cancelBooking(req.body.bookingId));
 });
 
 appServer.all("*", (req, res) => {
